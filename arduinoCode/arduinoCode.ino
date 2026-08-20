@@ -35,30 +35,6 @@ float actual_speed=0;
 
 MPU6050 mpu;
 
-//temp function to verify axis
-void mpu_verf(){
-  if(Roll<10 && Pitch<10){
-    digitalWrite(RED,LOW);
-    digitalWrite(GREEN,LOW);
-    digitalWrite(BLUE,LOW);
-  }
-  else if(Roll>10 && Pitch>10){
-    digitalWrite(RED,LOW);
-    digitalWrite(GREEN,LOW);
-    digitalWrite(BLUE,HIGH);
-  }
-  else if(Roll>10){
-    digitalWrite(RED,HIGH);
-    digitalWrite(GREEN,LOW);
-    digitalWrite(BLUE,LOW);
-  }
-  else if(Pitch>10){
-    digitalWrite(RED,LOW);
-    digitalWrite(GREEN,HIGH);
-    digitalWrite(BLUE,LOW);
-  }
-}
-
 void get_dt();
 // mpu function declariton, MPU is placed vertically so Readings of Z and X are switched
 void get_roll(float AccY,float AccX,float GyroZ);
@@ -129,13 +105,13 @@ void get_dt(){
 void get_roll(float AccY,float AccX,float GyroZ){
     float acc_Roll= atan2(AccY,AccX)*(180/PI);
     float gyro_Roll= GyroZ/131;
-    Roll=abs(0.98*(Roll+gyro_Roll*dt)+ 0.02*(acc_Roll));
+    Roll=(0.98*(Roll+gyro_Roll*dt)+ 0.02*(acc_Roll));
 
 }
 void get_pitch(float AccZ,float AccY,float AccX,float GyroY){
     float acc_Pitch= atan2(-AccZ,sqrt(AccY*AccY+AccX*AccX))*(180/PI);
     float gyro_Pitch= GyroY/131;
-    Pitch=abs(0.98*(Pitch+gyro_Pitch*dt)+ 0.02*(acc_Pitch));
+    Pitch=(0.98*(Pitch+gyro_Pitch*dt)+ 0.02*(acc_Pitch));
 
 }
 void get_speed(float AccZ){
@@ -168,13 +144,32 @@ void setup(){
   last_time=millis();
 }
 
+void stability_check(){
+  if(abs(Roll)<5 && abs(Pitch)<5){
+    digitalWrite(GREEN,HIGH);
+    digitalWrite(RED,LOW);
+    digitalWrite(BLUE,LOW);
+  }
+  else if((abs(Roll)>=5 && abs(Roll)<15)||(abs(Pitch)>=5 && abs(Pitch)<15)){
+    digitalWrite(GREEN,HIGH);
+    digitalWrite(RED,HIGH);
+    digitalWrite(BLUE,LOW);
+  }
+  else if(abs(Roll)>=15||abs(Pitch)>=15){
+    digitalWrite(GREEN,LOW);
+    digitalWrite(RED,HIGH);
+    digitalWrite(BLUE,LOW);
+  }
+}
+
 void loop(){
   get_dt(); //automatically updates last time as well
-  int16_t ax,ay,az,gx,gy,gz;
+  int16_t ax,ay,az,gx,gy,gz;// MPU IS ALIGNED WRONG. considering anything X to be Z and vice versa. so AX actually holds AZ
   mpu.getMotion6(&ax,&ay,&az,&gx,&gy,&gz);
   get_roll(ay,ax,gz);
   get_pitch(az,ay,ax,gy);
   get_speed(az);
+  stability_check();
   stop_all_motors();
   delay(1000);
   move_forward();
