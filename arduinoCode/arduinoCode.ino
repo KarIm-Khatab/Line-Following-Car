@@ -1,8 +1,8 @@
-<<<<<<< Updated upstream
+//<<<<<<< Updated upstream
 #include <L298N.h>
 #include <MPU6050.h>
-=======
->>>>>>> Stashed changes
+//=======
+//>>>>>>> Stashed changes
 
 #define right_motors_in1 6
 #define right_motors_in2 7
@@ -10,9 +10,12 @@
 #define left_motors_in1 2
 #define left_motors_in2  4
 #define left_motors_enable 3 
-#define buzzer 9 
+#define buzzer 8
+#define RED 9
+#define GREEN 10
+#define BLUE 11
 
-<<<<<<< Updated upstream
+//<<<<<<< Updated upstream
 int speed = 150;
 bool beeb = true;
 int last_beeb_time = 0;
@@ -32,21 +35,44 @@ float actual_speed=0;
 
 MPU6050 mpu;
 
+//temp function to verify axis
+void mpu_verf(){
+  if(Roll<10 && Pitch<10){
+    digitalWrite(RED,LOW);
+    digitalWrite(GREEN,LOW);
+    digitalWrite(BLUE,LOW);
+  }
+  else if(Roll>10 && Pitch>10){
+    digitalWrite(RED,LOW);
+    digitalWrite(GREEN,LOW);
+    digitalWrite(BLUE,HIGH);
+  }
+  else if(Roll>10){
+    digitalWrite(RED,HIGH);
+    digitalWrite(GREEN,LOW);
+    digitalWrite(BLUE,LOW);
+  }
+  else if(Pitch>10){
+    digitalWrite(RED,LOW);
+    digitalWrite(GREEN,HIGH);
+    digitalWrite(BLUE,LOW);
+  }
+}
+
 void get_dt();
-// mpu function declariton, 
-void get_roll(float AccY,float AccZ,float GyroX);
-void get_pitch(float AccX,float AccY,float AccZ,float GyroY);
-void get_speed(float AccX);
+// mpu function declariton, MPU is placed vertically so Readings of Z and X are switched
+void get_roll(float AccY,float AccX,float GyroZ);
+void get_pitch(float AccZ,float AccY,float AccX,float GyroY);
+void get_speed(float AccZ);
 void pid();
-=======
-int speed = 150;
->>>>>>> Stashed changes
+//=======
+//>>>>>>> Stashed changes
 
 void buzzer_backward_beeb(){
-  time = millis();
-  if(time - milis() >= 425){
+  float time = millis();
+  if(time - millis() >= 425){
     beeb = !beeb;
-    last_beeb_time = millis()
+    last_beeb_time = millis();
   }
   digitalWrite(buzzer, beeb ? HIGH : LOW);
 }
@@ -100,20 +126,20 @@ void get_dt(){
   last_time=millis();
 }
 
-void get_roll(float AccY,float AccZ,float GyroX){
-    float acc_Roll= atan2(AccY,AccZ)*(180/PI);
-    float gyro_Roll= GyroX/131;
-    Roll=0.98*(Roll+gyro_Roll*dt)+ 0.02*(acc_Roll);
+void get_roll(float AccY,float AccX,float GyroZ){
+    float acc_Roll= atan2(AccY,AccX)*(180/PI);
+    float gyro_Roll= GyroZ/131;
+    Roll=abs(0.98*(Roll+gyro_Roll*dt)+ 0.02*(acc_Roll));
 
 }
-void get_pitch(float AccX,float AccY,float AccZ,float GyroY){
-    float acc_Pitch= atan2(-AccX,sqrt(AccY*AccY+AccZ*AccZ))*(180/PI);
+void get_pitch(float AccZ,float AccY,float AccX,float GyroY){
+    float acc_Pitch= atan2(-AccZ,sqrt(AccY*AccY+AccX*AccX))*(180/PI);
     float gyro_Pitch= GyroY/131;
-    Pitch=0.98*(Pitch+gyro_Pitch*dt)+ 0.02*(acc_Pitch);
+    Pitch=abs(0.98*(Pitch+gyro_Pitch*dt)+ 0.02*(acc_Pitch));
 
 }
-void get_speed(float AccX){
-  actual_speed+=AccX*dt;
+void get_speed(float AccZ){
+  actual_speed+=abs(AccZ*dt);
   
 }
 void pid(){
@@ -134,6 +160,9 @@ void setup(){
   pinMode(left_motors_in2, OUTPUT);
   pinMode(left_motors_enable, OUTPUT);
   pinMode(buzzer, OUTPUT);
+  pinMode(RED,OUTPUT);
+  pinMode(GREEN,OUTPUT);
+  pinMode(BLUE,OUTPUT);
   stop_all_motors();
   mpu.initialize();
   last_time=millis();
@@ -143,9 +172,9 @@ void loop(){
   get_dt(); //automatically updates last time as well
   int16_t ax,ay,az,gx,gy,gz;
   mpu.getMotion6(&ax,&ay,&az,&gx,&gy,&gz);
-  get_roll(ay,az,gx);
-  get_pitch(ax,ay,az,gy);
-  get_speed(ax);
+  get_roll(ay,ax,gz);
+  get_pitch(az,ay,ax,gy);
+  get_speed(az);
   stop_all_motors();
   delay(1000);
   move_forward();
