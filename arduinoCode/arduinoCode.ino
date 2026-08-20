@@ -1,14 +1,21 @@
+<<<<<<< Updated upstream
 #include <L298N.h>
 #include <MPU6050.h>
+=======
+>>>>>>> Stashed changes
 
-#define right_motors_in1 8
+#define right_motors_in1 6
 #define right_motors_in2 7
-#define right_motors_enable A0
+#define right_motors_enable 5
 #define left_motors_in1 2
-#define left_motors_in2 4 
-#define left_motors_enable A1
+#define left_motors_in2  4
+#define left_motors_enable 3 
+#define buzzer 9 
 
-int speed = 10;
+<<<<<<< Updated upstream
+int speed = 150;
+bool beeb = true;
+int last_beeb_time = 0;
 float dt=0;
 //mpu global variables
 float Roll=0;
@@ -31,6 +38,18 @@ void get_roll(float AccY,float AccZ,float GyroX);
 void get_pitch(float AccX,float AccY,float AccZ,float GyroY);
 void get_speed(float AccX);
 void pid();
+=======
+int speed = 150;
+>>>>>>> Stashed changes
+
+void buzzer_backward_beeb(){
+  time = millis();
+  if(time - milis() >= 425){
+    beeb = !beeb;
+    last_beeb_time = millis()
+  }
+  digitalWrite(buzzer, beeb ? HIGH : LOW);
+}
 
 void stop_all_motors(){
   digitalWrite(right_motors_in1, LOW);
@@ -53,6 +72,7 @@ void move_forward(){
 
 void move_backward(){
   stop_all_motors();
+  buzzer_backward_beeb();
   digitalWrite(right_motors_in1, LOW);
   digitalWrite(right_motors_in2, HIGH);
   analogWrite(right_motors_enable, speed);
@@ -74,46 +94,6 @@ void move_right(){
   digitalWrite(left_motors_in2, LOW);
   analogWrite(left_motors_enable, speed);
 }
-
-void setup(){
-  pinMode(right_motors_in1, OUTPUT);
-  pinMode(right_motors_in2, OUTPUT);
-  pinMode(right_motors_enable, OUTPUT);
-  pinMode(left_motors_in1, OUTPUT);
-  pinMode(left_motors_in2, OUTPUT);
-  pinMode(left_motors_enable, OUTPUT);
-  stop_all_motors();
-  mpu.initialize();
-  last_time=millis();
-}
-
-void loop(){
-  get_dt(); //automatically updates last time as well
-  int16_t ax,ay,az,gx,gy,gz;
-  mpu.getMotion6(&ax,&ay,&az,&gx,&gy,&gz);
-  get_roll(ay,az,gx);
-  get_pitch(ax,ay,az,gy);
-  get_speed(ax);
-  stop_all_motors();
-  delay(1000);
-  move_forward();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_backward();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_right();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_left();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-}
-
 
 void get_dt(){
   dt=(millis()-last_time)/1000;
@@ -144,4 +124,44 @@ void pid(){
   }
   prev_error=error;
   pid_output= (kp*error)+(ki*error_sum)+(kd*error_derv);
+}
+
+void setup(){
+  pinMode(right_motors_in1, OUTPUT);
+  pinMode(right_motors_in2, OUTPUT);
+  pinMode(right_motors_enable, OUTPUT);
+  pinMode(left_motors_in1, OUTPUT);
+  pinMode(left_motors_in2, OUTPUT);
+  pinMode(left_motors_enable, OUTPUT);
+  pinMode(buzzer, OUTPUT);
+  stop_all_motors();
+  mpu.initialize();
+  last_time=millis();
+}
+
+void loop(){
+  get_dt(); //automatically updates last time as well
+  int16_t ax,ay,az,gx,gy,gz;
+  mpu.getMotion6(&ax,&ay,&az,&gx,&gy,&gz);
+  get_roll(ay,az,gx);
+  get_pitch(ax,ay,az,gy);
+  get_speed(ax);
+  stop_all_motors();
+  delay(1000);
+  move_forward();
+  delay(3000);
+  stop_all_motors();
+  delay(1000);
+  move_backward();
+  delay(3000);
+  stop_all_motors();
+  delay(1000);
+  move_right();
+  delay(3000);
+  stop_all_motors();
+  delay(1000);
+  move_left();
+  delay(3000);
+  stop_all_motors();
+  delay(1000);
 }
