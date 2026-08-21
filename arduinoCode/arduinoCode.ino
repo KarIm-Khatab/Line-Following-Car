@@ -1,6 +1,7 @@
 //<<<<<<< Updated upstream
-#include <L298N.h>
 #include <MPU6050.h>
+#include <SoftwareSerial.h>
+SoftwareSerial relaySerial(2, 3);
 //=======
 //>>>>>>> Stashed changes
 
@@ -14,15 +15,25 @@
 #define RED 9
 #define GREEN 10
 #define BLUE 11
+#define front_left_ir A0
+#define front_right_ir A1
+#define back_left_ir A2
+#define back_right_ir A3
+
 
 //<<<<<<< Updated upstream
-int speed = 150;
+int speed = 90;
 bool beeb = true;
+int fr_ir, fl_ir, br_ir, bl_ir;
+bool started = true;
 int last_beeb_time = 0;
+bool moving_forward = true;
+const int ir_threshold = 900;
 float dt=0;
 //mpu global variables
 float Roll=0;
 float Pitch=-0;
+float Yaw=0;
 unsigned long last_time=0;
 float prev_error=0;
 float error_sum=0;
@@ -32,6 +43,8 @@ float kp=0.5,ki=0.1,kd=0.1;
 int pid_output=0;
 float actual_speed=0;
 
+bool embedded = true;
+bool app = false;
 
 MPU6050 mpu;
 
@@ -46,11 +59,18 @@ void pid();
 
 void buzzer_backward_beeb(){
   float time = millis();
-  if(time - millis() >= 425){
+  if(time - last_beeb_time >= 425){
     beeb = !beeb;
     last_beeb_time = millis();
   }
   digitalWrite(buzzer, beeb ? HIGH : LOW);
+}
+
+void read_ir(){
+  fr_ir= analogRead(front_right_ir);
+  fl_ir= analogRead(front_left_ir);
+  bl_ir = analogRead(back_left_ir);
+  br_ir = analogRead(back_right_ir) ;
 }
 
 void stop_all_motors(){
@@ -63,18 +83,6 @@ void stop_all_motors(){
 }
 
 void move_forward(){
-  stop_all_motors();
-  digitalWrite(right_motors_in1, HIGH);
-  digitalWrite(right_motors_in2, LOW);
-  analogWrite(right_motors_enable, speed);
-  digitalWrite(left_motors_in1, HIGH);
-  digitalWrite(left_motors_in2, LOW);
-  analogWrite(left_motors_enable, speed);
-}
-
-void move_backward(){
-  stop_all_motors();
-  buzzer_backward_beeb();
   digitalWrite(right_motors_in1, LOW);
   digitalWrite(right_motors_in2, HIGH);
   analogWrite(right_motors_enable, speed);
@@ -83,18 +91,85 @@ void move_backward(){
   analogWrite(left_motors_enable, speed);
 }
 
-void move_left(){
+void move_backward(){
   stop_all_motors();
+  buzzer_backward_beeb();
   digitalWrite(right_motors_in1, HIGH);
   digitalWrite(right_motors_in2, LOW);
   analogWrite(right_motors_enable, speed);
-}
-
-void move_right(){
-  stop_all_motors();
   digitalWrite(left_motors_in1, HIGH);
   digitalWrite(left_motors_in2, LOW);
   analogWrite(left_motors_enable, speed);
+}
+
+void move_left(){
+  digitalWrite(left_motors_in1, HIGH);
+  digitalWrite(left_motors_in2, LOW);
+  analogWrite(left_motors_enable, speed );
+  digitalWrite(right_motors_in1, LOW);
+  digitalWrite(right_motors_in2, HIGH);
+  analogWrite(right_motors_enable, speed * 1.7);
+}
+
+void move_right(){
+  digitalWrite(right_motors_in1, HIGH);
+  digitalWrite(right_motors_in2, LOW);
+  analogWrite(right_motors_enable, speed );
+  digitalWrite(left_motors_in1, LOW);
+  digitalWrite(left_motors_in2, HIGH);
+  analogWrite(left_motors_enable, speed * 1.7);
+}
+
+void spin(){
+  stop_all_motors();
+  
+  digitalWrite(right_motors_in1, HIGH);
+  digitalWrite(right_motors_in2, LOW);
+  analogWrite(right_motors_enable, 250);
+  digitalWrite(left_motors_in1, LOW);
+  digitalWrite(left_motors_in2, HIGH);
+  analogWrite(left_motors_enable, 250);
+}
+void stopping_inertia()
+{
+  if(moving_forward){
+    if(bl_ir>= ir_threshold && br_ir>= ir_threshold)
+      stop_all_motors();
+  }
+}
+void movement_handler(){
+  if(moving_forward){
+    beeb = false;
+    if(fl_ir< ir_threshold && fr_ir< ir_threshold)
+    {
+      //stopping_inertia();
+      move_forward();
+    }
+    else if(fl_ir< ir_threshold && fr_ir >= ir_threshold){
+      move_right(); 
+    }
+    else if(fl_ir >= ir_threshold && fr_ir< ir_threshold){
+      move_left(); 
+    }
+    else {
+      stop_all_motors();
+    }
+  }
+  else {
+    if(analogRead(back_left_ir)>= ir_threshold && analogRead(back_right_ir)>= ir_threshold)
+    {
+      move_backward();
+    }
+    else if(analogRead(back_left_ir)>= ir_threshold && analogRead(back_right_ir) < ir_threshold){
+      move_right(); 
+    }
+    else if(analogRead(back_left_ir) < ir_threshold && analogRead(back_right_ir)>= ir_threshold){
+      move_left(); 
+    }
+    else {
+      stop_all_motors();
+    }
+  }
 }
 
 void get_dt(){
@@ -113,6 +188,10 @@ void get_pitch(float AccZ,float AccY,float AccX,float GyroY){
     float gyro_Pitch= GyroY/131;
     Pitch=(0.98*(Pitch+gyro_Pitch*dt)+ 0.02*(acc_Pitch));
 
+}
+
+void get_yaw(float GyroX){
+  Yaw=GyroX/131;
 }
 void get_speed(float AccZ){
   actual_speed+=abs(AccZ*dt);
@@ -139,6 +218,11 @@ void setup(){
   pinMode(RED,OUTPUT);
   pinMode(GREEN,OUTPUT);
   pinMode(BLUE,OUTPUT);
+  pinMode(back_left_ir,INPUT);
+  pinMode(back_right_ir,INPUT); 
+  pinMode(front_left_ir,INPUT);
+  pinMode(front_right_ir,INPUT); 
+  Serial.begin(9600);
   stop_all_motors();
   mpu.initialize();
   last_time=millis();
@@ -168,24 +252,59 @@ void loop(){
   mpu.getMotion6(&ax,&ay,&az,&gx,&gy,&gz);
   get_roll(ay,ax,gz);
   get_pitch(az,ay,ax,gy);
+  get_yaw(gx);
   get_speed(az);
   stability_check();
-  stop_all_motors();
-  delay(1000);
-  move_forward();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_backward();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_right();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
-  move_left();
-  delay(3000);
-  stop_all_motors();
-  delay(1000);
+  //spin();
+  read_ir();
+  Serial.println(fr_ir);
+  //if(started)
+  //{
+  //}
+}
+
+
+
+void loop() {
+  if (relaySerial.available()) {
+    String COMAND = relaySerial.readStringUntil('\n');  
+    COMAND.trim();
+
+ if (COMAND == "START")
+    {
+      embedded = false;
+      app = true; 
+      }
+      else if (COMAND == "END")
+{
+  
+}
+if(app){
+    if (COMAND == "F") {
+      moveForward();    
+    }
+    else if (COMAND == "B") {
+      moveBackward();   
+    }
+    else if (COMAND == "L") {
+  turnLeft();
+}
+
+else if (COMAND == "R") {
+  turnRight();
+}
+    else if (COMAND== "S") {
+      stopMotors();       
+    }
+    else if (COMAND.startsWith("V:")) {
+      int speed = COMAND.substring(2).toInt();
+      setSpeed(speed);    
+    }}
+    if (embedded)
+  {
+    //call emneded functions 
+    movement_handler();
+
+  }
+  }
 }
